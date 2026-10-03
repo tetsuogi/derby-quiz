@@ -328,7 +328,7 @@ function renderCards() {
           ${[['year', '年'], ['horse', '馬名'], ['random', 'ランダム']].map(([k, v]) => `<button class="chip" data-front="${k}" aria-pressed="${cardUI.front === k}">${v}</button>`).join('')}
         </div>
       </div>
-      <div class="chips" id="c-era">${ERAS.map(e => `<button class="chip" data-era="${e.id}" aria-pressed="${cardUI.era === e.id}">${e.label}</button>`).join('')}</div>
+      <div class="chips scroll-x" id="c-era">${ERAS.map(e => `<button class="chip" data-era="${e.id}" aria-pressed="${cardUI.era === e.id}">${e.label}</button>`).join('')}</div>
       <label class="toggle"><input type="checkbox" id="c-weak" ${cardUI.weakOnly ? 'checked' : ''}> 復習リストの馬だけ</label>
     </div>
     <div class="card-stage">

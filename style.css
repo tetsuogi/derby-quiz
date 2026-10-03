@@ -158,6 +158,12 @@ h3 { font-size: 14px; font-weight: 700; margin: 18px 0 8px; color: var(--muted);
   font-size: 13px; font-weight: 700; cursor: pointer;
 }
 .chip:hover { border-color: var(--accent); }
+/* スマホでは横スクロールの1行にして縦の場所を節約 */
+@media (max-width: 720px) {
+  .chips.scroll-x { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 2px 16px; }
+  .chips.scroll-x::-webkit-scrollbar { display: none; }
+  .chips.scroll-x .chip { flex: none; }
+}
 .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 
 input[type="search"], input[type="text"], input[type="email"], input[type="password"], select {
@@ -258,11 +264,12 @@ table.list tr.gap td { text-align: center; color: var(--muted); font-size: 12px;
 .toggle input { accent-color: var(--accent); width: 18px; height: 18px; }
 
 /* ---------- cards ---------- */
-.card-stage { display: grid; gap: 16px; justify-items: center; margin-top: 18px; }
+.card-stage { display: grid; gap: 12px; justify-items: center; margin-top: 14px; }
 .flashcard {
-  width: 100%; max-width: 520px; min-height: 320px;
+  /* 表と裏で高さが変わらないよう固定（裏面のいちばん長い馬に合わせた高さ） */
+  width: 100%; max-width: 520px; height: 392px; overflow-y: auto;
   display: grid; place-items: center; text-align: center;
-  padding: 28px 22px;
+  padding: 22px 20px;
   background: var(--surface);
   border: 2px solid var(--line);
   border-radius: 32px;
