@@ -186,7 +186,7 @@ function renderList() {
         <td data-l="騎手">${esc(d.jockey)}</td>
         <td data-l="調教師">${esc(d.trainer)}</td>
         <td class="pop">${d.pop ? `${d.pop}番人気` : ''}</td>
-        <td class="sub">父 ${esc(d.sire)}／騎手 ${esc(d.jockey)}</td>
+        <td class="sub">調教師 ${esc(d.trainer)}／騎手 ${esc(d.jockey)}</td>
       </tr>`;
       prev = d;
     }
