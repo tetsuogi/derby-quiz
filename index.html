@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ダービー馬暗記帳</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">優</span>
+      <div>
+        <h1>ダービー馬暗記帳</h1>
+        <p class="sub">日本ダービー（東京優駿）歴代優勝馬 <span id="count"></span>頭</p>
+      </div>
+    </div>
+    <nav class="tabs">
+      <a href="#list" data-view="list">一覧</a>
+      <a href="#group" data-view="group">切り口</a>
+      <a href="#cards" data-view="cards">暗記カード</a>
+      <a href="#quiz" data-view="quiz">クイズ</a>
+      <a href="#review" data-view="review">復習<span class="badge" id="miss-badge" hidden></span></a>
+    </nav>
+  </header>
+
+  <main id="app"></main>
+
+  <dialog id="detail"></dialog>
+
+  <footer class="site-footer">
+    データ出典: Wikipedia日本語版「東京優駿」および各馬の記事（CC BY-SA 4.0）
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
