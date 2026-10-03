@@ -934,9 +934,48 @@ function openAccount() {
     <p class="meta">${esc(account.user.email)}</p>
     <p>${esc(STATUS_TEXT[account.status] || '')}</p>
     <p class="note">成績と復習リストはこのアカウントに保存され、ログインしたどの端末でも同じ内容になります。</p>
+    <details class="pw-change">
+      <summary>パスワードを変更する</summary>
+      <form id="pw-form" class="settings" style="gap:10px; margin-top:12px">
+        <input type="email" name="username" value="${esc(account.user.email)}" autocomplete="username" hidden>
+        <input type="password" name="pw1" placeholder="新しいパスワード（6文字以上）" autocomplete="new-password" minlength="6" required>
+        <input type="password" name="pw2" placeholder="新しいパスワード（確認）" autocomplete="new-password" minlength="6" required>
+        <p class="login-error" id="pw-error" hidden></p>
+        <p class="form-ok" id="pw-ok" hidden>パスワードを変更しました。次回からは新しいパスワードでログインしてください。</p>
+        <button class="btn primary" type="submit">変更する</button>
+      </form>
+    </details>
     <div class="row" style="margin-top:16px; justify-content:flex-end"><button class="btn" id="logout">ログアウト</button></div>
   </div>`;
   accountDlg.querySelector('#logout').addEventListener('click', async () => { accountDlg.close(); await logout(); });
+  const pwForm = accountDlg.querySelector('#pw-form');
+  pwForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const err = accountDlg.querySelector('#pw-error');
+    const ok = accountDlg.querySelector('#pw-ok');
+    const btn = pwForm.querySelector('button[type=submit]');
+    err.hidden = true;
+    ok.hidden = true;
+    if (pwForm.pw1.value !== pwForm.pw2.value) {
+      err.textContent = '2つの入力が一致しません';
+      err.hidden = false;
+      return;
+    }
+    btn.disabled = true;
+    const { error } = await sb.auth.updateUser({ password: pwForm.pw1.value });
+    btn.disabled = false;
+    if (error) {
+      const m = error.message;
+      err.textContent = /different from the old/i.test(m) ? '今と同じパスワードです。別のパスワードにしてください'
+        : /at least|weak/i.test(m) ? 'パスワードが短すぎるか、簡単すぎます。6文字以上で、推測されにくいものにしてください'
+        : /reauthenticat|nonce/i.test(m) ? '本人確認が必要な設定になっています。管理者に連絡してください'
+        : `変更できませんでした（${m}）`;
+      err.hidden = false;
+      return;
+    }
+    pwForm.reset();
+    ok.hidden = false;
+  });
   accountDlg.showModal();
 }
 accountDlg.addEventListener('click', e => {

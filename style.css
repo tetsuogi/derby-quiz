@@ -179,6 +179,9 @@ input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible
 
 .toolbar { display: grid; gap: 12px; }
 .login-error { margin: 0; color: var(--ng); font-size: 13px; font-weight: 700; }
+.form-ok { margin: 0; color: var(--ok); font-size: 13px; font-weight: 700; }
+.pw-change { margin-top: 16px; padding-top: 14px; border-top: 2px dashed var(--line); }
+.pw-change summary { cursor: pointer; font-weight: 700; font-size: 14px; color: var(--accent); }
 
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-right: 6px; vertical-align: 2px; }
 .tag {
