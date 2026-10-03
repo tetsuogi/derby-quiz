@@ -569,6 +569,7 @@ function renderQuestion() {
   const ans = s.answered;
   const pct = (s.i / s.qs.length) * 100;
 
+  const nextLabel = s.i + 1 < s.qs.length ? '次へ →' : '結果を見る';
   let body;
   if (s.mode === 'choice') {
     body = `<div class="choices">${q.choices.map((c, i) => {
@@ -579,25 +580,30 @@ function renderQuestion() {
   } else {
     body = `<form class="answer-form" id="ans-form" autocomplete="off">
         <input type="text" id="ans" ${q.numeric ? 'inputmode="numeric"' : ''} placeholder="答えを入力" value="${ans ? esc(ans.input) : ''}" ${ans ? 'disabled' : ''}>
-        <button class="btn primary" type="submit" ${ans ? 'disabled' : ''}>答える</button>
+        ${ans
+          ? `<button class="btn primary" type="button" id="next">${nextLabel}</button>`
+          : '<button class="btn primary" type="submit">答える</button>'}
       </form>
-      <div class="row" style="justify-content:space-between; margin-top:6px">
+      ${ans ? '' : `<div class="row" style="justify-content:space-between; margin-top:6px">
         <p class="input-hint">${esc(q.hint || '')}</p>
-        ${ans ? '' : '<button class="btn ghost small" id="giveup">わからない</button>'}
-      </div>`;
+        <button class="btn ghost small" id="giveup">わからない</button>
+      </div>`}`;
   }
 
   let fb = '';
   if (ans) {
     const correctText = q.allAnswers && q.allAnswers.length > 1 ? `正解：${q.allAnswers.join('、')}` : `正解：${q.answer}`;
-    fb = `<div class="feedback ${ans.ok ? 'ok' : 'ng'}">
-      <p class="verdict">${ans.ok ? 'せいかい！' : 'おしい…！'}</p>
-      <p class="your">${ans.ok && s.mode === 'choice' ? '' : esc(correctText)}${!ans.ok && ans.input ? `（あなたの答え：${esc(ans.input)}）` : ''}</p>
-      <h3 style="margin-top:12px">${esc(q.h.horse)}</h3>
-      ${factsHtml(q.h, q.highlight)}
-      ${relatedHtml(q.h)}
-      <div class="next-row"><button class="btn primary" id="next">${s.i + 1 < s.qs.length ? '次の問題 →' : '結果を見る'}</button></div>
-    </div>`;
+    // 判定と「次へ」は答えたすぐ下に出し、解説はその下にまとめる（簡単な問題はスクロールせずに次へ進める）
+    const your = `${ans.ok && s.mode === 'choice' ? '' : esc(correctText)}${!ans.ok && ans.input ? `（あなたの答え：${esc(ans.input)}）` : ''}`;
+    fb = `<div class="verdict-bar ${ans.ok ? 'ok' : 'ng'}">
+        <div><p class="verdict">${ans.ok ? 'せいかい！' : 'おしい…！'}</p>${your ? `<p class="your">${your}</p>` : ''}</div>
+        ${s.mode === 'choice' ? `<button class="btn primary" id="next">${nextLabel}</button>` : ''}
+      </div>
+      <div class="feedback">
+        <h3>${esc(q.h.horse)}</h3>
+        ${factsHtml(q.h, q.highlight)}
+        ${relatedHtml(q.h)}
+      </div>`;
   }
 
   app.innerHTML = `
