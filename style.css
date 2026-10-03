@@ -53,8 +53,7 @@ button, input, select { font: inherit; color: inherit; }
 .brand { display: flex; align-items: center; gap: 10px; max-width: 960px; margin: 0 auto; }
 .brand-mark {
   display: block;
-  width: 42px; height: 42px; border-radius: 12px;
-  box-shadow: 0 3px 0 var(--line);
+  width: 44px; height: 44px; border-radius: 50%;
   flex: none;
 }
 h1 { margin: 0; font-size: 19px; font-weight: 900; letter-spacing: .02em; line-height: 1.25; }
