@@ -161,7 +161,7 @@ function renderList() {
     <p class="meta" id="list-meta"></p>
     <div class="table-wrap">
       <table class="list">
-        <thead><tr><th>回</th><th>年</th><th>馬名</th><th>騎手</th><th>調教師</th><th>父</th><th>母の父</th><th>人気</th></tr></thead>
+        <thead><tr><th>回</th><th>年</th><th>馬名</th><th>父</th><th>母の父</th><th>騎手</th><th>調教師</th><th>人気</th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
     </div>`;
@@ -181,12 +181,12 @@ function renderList() {
         <td class="no">${d.no}</td>
         <td class="yr">${d.year}</td>
         <td class="horse">${weak.has(d.no) ? '<span class="dot" title="復習リストにあり"></span>' : ''}${esc(d.horse)}${d.sex === '牝' ? '<span class="tag">牝</span>' : ''}</td>
-        <td data-l="騎手">${esc(d.jockey)}</td>
-        <td data-l="調教師">${esc(d.trainer)}</td>
         <td data-l="父">${esc(d.sire)}</td>
         <td data-l="${d.damsire ? '母の父' : ''}">${esc(d.damsire)}</td>
+        <td data-l="騎手">${esc(d.jockey)}</td>
+        <td data-l="調教師">${esc(d.trainer)}</td>
         <td class="pop">${d.pop ? `${d.pop}番人気` : ''}</td>
-        <td class="sub">騎手 ${esc(d.jockey)}／父 ${esc(d.sire)}</td>
+        <td class="sub">父 ${esc(d.sire)}／騎手 ${esc(d.jockey)}</td>
       </tr>`;
       prev = d;
     }
