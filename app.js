@@ -423,7 +423,7 @@ function makeQuestion(key) {
     return Object.assign(q, {
       prompt: `${h.year}年のダービー馬は？`, sub: `第${h.no}回 東京優駿`,
       answer: h.horse, choices: [h.horse, ...distractors(h, d => d.horse, 3)],
-      check: v => nameMatches(h.horse, v), hint: 'カタカナでもひらがなでもOK', highlight: 'year',
+      check: v => nameMatches(h.horse, v), hint: 'カタカナでもひらがなでもOK', highlight: 'year', horseAnswer: true,
     });
   }
   if (type === 'horse-year') {
@@ -455,7 +455,7 @@ function makeQuestion(key) {
       answer: h.horse,
       choices: [h.horse, ...distractors(h, d => d.horse, 3, (_, d) => d[f] !== val)],
       check: v => valid.some(d => nameMatches(d.horse, v)),
-      allAnswers: valid.map(d => d.horse), hint: 'カタカナでもひらがなでもOK', highlight: f,
+      allAnswers: valid.map(d => d.horse), hint: 'カタカナでもひらがなでもOK', highlight: f, horseAnswer: true,
     });
   }
   return null;
@@ -464,13 +464,19 @@ function makeQuestion(key) {
 // ============================================================
 // クイズ：画面
 // ============================================================
-const defaultSettings = { types: ['year-horse', 'horse-year', 'horse-jockey', 'horse-sire'], mode: 'choice', era: 'all', n: 10 };
+const defaultSettings = { types: ['year-horse', 'horse-year', 'horse-jockey', 'horse-sire'], mode: 'choice', era: 'all', n: 10, hint: false };
 const settings = Object.assign({}, defaultSettings, state.settings || {});
 let session = null;
 
+// 頭文字ヒント（「ディープインパクト」なら「ディ」のように、小さい文字までをひとまとまりにする）
+function initialOf(name) {
+  const m = name.match(/^.[ァィゥェォャュョヮぁぃぅぇぉゃゅょゎ]?/u);
+  return m ? m[0] : '';
+}
+
 function startSession(keys, { mode = settings.mode, title = 'クイズ', review = false } = {}) {
   const qs = keys.map(makeQuestion).filter(Boolean).map(q => Object.assign(q, { choices: q.numeric ? q.choices : shuffle(q.choices) }));
-  session = { qs, i: 0, mode, title, review, results: [], answered: null };
+  session = { qs, i: 0, mode, title, review, hint: settings.hint, results: [], answered: null };
 }
 
 function buildKeysFromSettings() {
@@ -513,6 +519,7 @@ function renderQuizSettings() {
             <button type="button" class="chip" data-v="choice" aria-pressed="${settings.mode === 'choice'}">4択</button>
             <button type="button" class="chip" data-v="input" aria-pressed="${settings.mode === 'input'}">入力</button>
           </div>
+          <label class="toggle" style="margin-top:10px"><input type="checkbox" name="hint" ${settings.hint ? 'checked' : ''}> 馬名の頭文字をヒントに出す（入力のとき）</label>
         </fieldset>
         <fieldset>
           <legend>範囲</legend>
@@ -536,6 +543,7 @@ function renderQuizSettings() {
       settings.types = [...form.querySelectorAll('input[name=types]:checked')].map(i => i.value);
       syncStart();
     }
+    if (e.target.name === 'hint') settings.hint = e.target.checked;
   });
   form.addEventListener('click', e => {
     const b = e.target.closest('[data-v]');
@@ -599,6 +607,7 @@ function renderQuestion() {
       <span class="q-label">${esc(q.label)}</span>
       <p class="q-prompt">${esc(q.prompt)}</p>
       <p class="q-sub">${esc(s.mode === 'input' && q.inputSub ? q.inputSub : q.sub)}</p>
+      ${s.mode === 'input' && s.hint && q.horseAnswer && !ans ? `<p class="q-hint">ヒント：<b>${esc(initialOf(q.answer))}</b> から始まる馬</p>` : ''}
       ${body}
       ${fb}
     </div>
@@ -707,6 +716,7 @@ function renderReview() {
           <button class="chip" data-v="choice" aria-pressed="${reviewUI.mode === 'choice'}">4択</button>
           <button class="chip" data-v="input" aria-pressed="${reviewUI.mode === 'input'}">入力</button>
         </div>
+        ${reviewUI.mode === 'input' ? `<label class="toggle"><input type="checkbox" id="rv-hint" ${settings.hint ? 'checked' : ''}> 頭文字ヒント</label>` : ''}
         <button class="btn primary" id="rv-start">復習スタート（${Math.min(entries.length, 20)}問）</button>
       </div>
       <h3>苦手な問題（間違えた回数順）</h3>
@@ -726,6 +736,11 @@ function renderReview() {
     if (!b) return;
     reviewUI.mode = b.dataset.v;
     renderReview();
+  });
+  document.getElementById('rv-hint')?.addEventListener('change', e => {
+    settings.hint = e.target.checked;
+    state.settings = settings;
+    save();
   });
   document.getElementById('rv-start').addEventListener('click', () => {
     // 間違いの多いものを優先しつつ、順番はシャッフル
