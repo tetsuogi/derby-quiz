@@ -185,12 +185,13 @@ function renderList() {
         <td data-l="調教師">${esc(d.trainer)}</td>
         <td data-l="父">${esc(d.sire)}</td>
         <td data-l="${d.damsire ? '母の父' : ''}">${esc(d.damsire)}</td>
-        <td class="pop">${d.pop ? `${d.pop}人気` : ''}</td>
+        <td class="pop">${d.pop ? `${d.pop}番人気` : ''}</td>
+        <td class="sub">騎手 ${esc(d.jockey)}／父 ${esc(d.sire)}</td>
       </tr>`;
       prev = d;
     }
     document.getElementById('rows').innerHTML = html || '<tr><td colspan="8" class="empty">該当する馬がいません</td></tr>';
-    document.getElementById('list-meta').textContent = `${rows.length}頭を表示中・行をタップすると詳細`;
+    document.getElementById('list-meta').textContent = `${rows.length}頭のダービー馬・タップで詳しく`;
   };
 
   document.getElementById('q').addEventListener('input', e => { listUI.q = e.target.value; draw(); });
@@ -582,7 +583,7 @@ function renderQuestion() {
   if (ans) {
     const correctText = q.allAnswers && q.allAnswers.length > 1 ? `正解：${q.allAnswers.join('、')}` : `正解：${q.answer}`;
     fb = `<div class="feedback ${ans.ok ? 'ok' : 'ng'}">
-      <p class="verdict">${ans.ok ? '正解！' : '不正解'}</p>
+      <p class="verdict">${ans.ok ? 'せいかい！' : 'おしい…！'}</p>
       <p class="your">${ans.ok && s.mode === 'choice' ? '' : esc(correctText)}${!ans.ok && ans.input ? `（あなたの答え：${esc(ans.input)}）` : ''}</p>
       <h3 style="margin-top:12px">${esc(q.h.horse)}</h3>
       ${factsHtml(q.h, q.highlight)}
