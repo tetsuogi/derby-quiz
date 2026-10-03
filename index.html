@@ -14,6 +14,7 @@
         <h1>ダービー馬暗記帳</h1>
         <p class="sub">日本ダービー（東京優駿）歴代優勝馬 <span id="count"></span>頭</p>
       </div>
+      <button class="account-btn" id="account-btn" hidden>ログイン</button>
     </div>
     <nav class="tabs">
       <a href="#list" data-view="list">一覧</a>
@@ -27,11 +28,14 @@
   <main id="app"></main>
 
   <dialog id="detail"></dialog>
+  <dialog id="account"></dialog>
 
   <footer class="site-footer">
     データ出典: Wikipedia日本語版「東京優駿」および各馬の記事（CC BY-SA 4.0）
   </footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
   <script src="data.js"></script>
   <script src="app.js"></script>
 </body>

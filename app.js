@@ -61,13 +61,24 @@ function nameMatches(correct, input) {
 
 // ============================================================
 // 保存データ（苦手リスト・成績）
+// 未ログイン時はこのブラウザだけに保存。ログイン中はアカウントごとに保存し Supabase に同期する
 // ============================================================
-const STORE_KEY = 'derby-quiz:v1';
-const state = Object.assign({ miss: {}, total: 0, correct: 0, settings: null }, (() => {
-  try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch { return {}; }
-})());
+const GUEST_KEY = 'derby-quiz:v1';
+const emptyState = () => ({ miss: {}, total: 0, correct: 0, settings: null, updatedAt: 0 });
+const readLocal = key => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } };
+const writeLocal = (key, v) => { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* 保存できない環境では何もしない */ } };
+
+let storeKey = GUEST_KEY;
+const state = Object.assign(emptyState(), readLocal(GUEST_KEY));
+
+function replaceState(next) {
+  for (const k of Object.keys(state)) delete state[k];
+  Object.assign(state, emptyState(), next);
+}
 function save() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch { /* 保存できない環境では何もしない */ }
+  state.updatedAt = Date.now();
+  writeLocal(storeKey, state);
+  scheduleSync();
 }
 const weakNos = () => new Set(Object.keys(state.miss).map(k => +k.split(':')[0]));
 
@@ -768,6 +779,160 @@ function route() {
   updateBadge();
 }
 
+// ============================================================
+// アカウント（Supabase）と同期
+// ============================================================
+const cfg = window.DERBY_CONFIG || {};
+const sb = window.supabase && cfg.supabaseUrl ? window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey) : null;
+const account = { user: null, status: '' }; // status: saving / saved / error
+const accountBtn = document.getElementById('account-btn');
+const accountDlg = document.getElementById('account');
+let syncTimer = null;
+
+const displayName = u => (u.user_metadata && u.user_metadata.name) || u.email.split('@')[0];
+const hasProgress = s => s && (s.total > 0 || Object.keys(s.miss || {}).length > 0);
+
+function updateAccountBtn() {
+  if (!sb) { accountBtn.hidden = true; return; }
+  accountBtn.hidden = false;
+  accountBtn.textContent = account.user ? displayName(account.user) : 'ログイン';
+  accountBtn.dataset.status = account.user ? account.status : '';
+}
+
+function scheduleSync() {
+  if (!account.user) return;
+  account.status = 'saving';
+  updateAccountBtn();
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(pushRemote, 800);
+}
+
+async function pushRemote() {
+  clearTimeout(syncTimer);
+  syncTimer = null;
+  if (!account.user) return;
+  const { error } = await sb.from('progress').upsert({
+    user_id: account.user.id, data: state, updated_at: new Date(state.updatedAt || Date.now()).toISOString(),
+  });
+  account.status = error ? 'error' : 'saved';
+  updateAccountBtn();
+}
+
+// 複数端末で同じアカウントを使うので、新しく更新された方を採用する
+async function pullRemote() {
+  const { data, error } = await sb.from('progress').select('data').eq('user_id', account.user.id).maybeSingle();
+  if (error) { account.status = 'error'; return; }
+  const remote = data && data.data;
+  if (remote && (remote.updatedAt || 0) >= (state.updatedAt || 0)) {
+    replaceState(remote);
+    writeLocal(storeKey, state);
+  } else if (hasProgress(state)) {
+    await pushRemote();
+  }
+  account.status = 'saved';
+}
+
+// ゲストで解いた記録は、ログインしたアカウントに引き継ぐ
+function mergeInto(base, extra) {
+  const miss = { ...base.miss };
+  for (const [k, v] of Object.entries(extra.miss || {})) {
+    const m = miss[k];
+    miss[k] = m ? { n: Math.max(m.n, v.n), at: Math.max(m.at || 0, v.at || 0) } : v;
+  }
+  return { ...base, miss, total: (base.total || 0) + (extra.total || 0), correct: (base.correct || 0) + (extra.correct || 0) };
+}
+
+async function switchToUser(user, { takeGuest = false } = {}) {
+  account.user = user;
+  storeKey = `${GUEST_KEY}:${user.id}`;
+  replaceState(readLocal(storeKey) || {});
+  await pullRemote();
+  const guest = readLocal(GUEST_KEY);
+  if (takeGuest && hasProgress(guest)) {
+    replaceState(mergeInto(state, guest));
+    try { localStorage.removeItem(GUEST_KEY); } catch { /* 無視 */ }
+    save();
+  }
+  Object.assign(settings, defaultSettings, state.settings || {});
+  updateAccountBtn();
+  route();
+}
+
+async function logout() {
+  if (syncTimer) await pushRemote();
+  await sb.auth.signOut();
+  account.user = null;
+  account.status = '';
+  storeKey = GUEST_KEY;
+  replaceState(readLocal(GUEST_KEY) || {});
+  Object.assign(settings, defaultSettings, state.settings || {});
+  session = null;
+  updateAccountBtn();
+  route();
+}
+
+const STATUS_TEXT = { saving: '保存中…', saved: 'クラウドに保存済み', error: '保存に失敗しました（通信を確認してください）' };
+
+function openAccount() {
+  if (account.user) {
+    accountDlg.innerHTML = `<div class="dlg-body">
+      <div class="dlg-top"><h2>${esc(displayName(account.user))}</h2><button class="close" aria-label="閉じる" data-close>×</button></div>
+      <p class="meta">${esc(account.user.email)}</p>
+      <p>${esc(STATUS_TEXT[account.status] || '')}</p>
+      <p class="note">成績と復習リストはこのアカウントに保存され、ログインしたどの端末でも同じ内容になります。</p>
+      <div class="row" style="margin-top:16px; justify-content:flex-end"><button class="btn" id="logout">ログアウト</button></div>
+    </div>`;
+    accountDlg.querySelector('#logout').addEventListener('click', async () => { accountDlg.close(); await logout(); });
+  } else {
+    accountDlg.innerHTML = `<div class="dlg-body">
+      <div class="dlg-top"><h2>ログイン</h2><button class="close" aria-label="閉じる" data-close>×</button></div>
+      <p class="lead" style="margin-top:8px">ログインすると、成績と復習リストを端末間で同期できます。</p>
+      <form id="login-form" class="settings" style="gap:10px">
+        <input type="email" name="email" placeholder="メールアドレス" autocomplete="username" required>
+        <input type="password" name="password" placeholder="パスワード" autocomplete="current-password" required>
+        <p class="login-error" id="login-error" hidden></p>
+        <button class="btn primary" type="submit">ログイン</button>
+      </form>
+      ${hasProgress(readLocal(GUEST_KEY)) ? '<p class="note">このブラウザでログインせずに解いた記録は、ログインしたアカウントに引き継がれます。</p>' : ''}
+    </div>`;
+    const form = accountDlg.querySelector('#login-form');
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const btn = form.querySelector('button[type=submit]');
+      const err = accountDlg.querySelector('#login-error');
+      btn.disabled = true;
+      err.hidden = true;
+      const { data, error } = await sb.auth.signInWithPassword({ email: form.email.value.trim(), password: form.password.value });
+      btn.disabled = false;
+      if (error) {
+        err.textContent = /invalid login credentials/i.test(error.message) ? 'メールアドレスかパスワードが違います' : `ログインできませんでした（${error.message}）`;
+        err.hidden = false;
+        return;
+      }
+      accountDlg.close();
+      await switchToUser(data.user, { takeGuest: true });
+    });
+  }
+  accountDlg.showModal();
+}
+accountDlg.addEventListener('click', e => {
+  if (e.target === accountDlg || e.target.closest('[data-close]')) accountDlg.close();
+});
+accountBtn.addEventListener('click', () => { if (sb) openAccount(); });
+
+// 画面を閉じる・アプリを切り替える前に、未送信の変更を送る
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && syncTimer) pushRemote();
+});
+
+async function initAccount() {
+  updateAccountBtn();
+  if (!sb) return;
+  const { data } = await sb.auth.getSession();
+  if (data.session) await switchToUser(data.session.user);
+}
+
 document.getElementById('count').textContent = D.length;
 window.addEventListener('hashchange', () => { route(); window.scrollTo({ top: 0 }); });
 route();
+initAccount();

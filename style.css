@@ -71,6 +71,25 @@ button, input, select { font: inherit; color: inherit; }
   font-family: var(--serif); font-size: 20px; font-weight: 700;
   flex: none;
 }
+.account-btn {
+  margin-left: auto; flex: none;
+  max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 6px 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.account-btn:hover { border-color: var(--accent); }
+.account-btn[data-status]:not([data-status=""])::before {
+  content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  margin-right: 6px; vertical-align: 1px; background: var(--ok);
+}
+.account-btn[data-status="saving"]::before { background: var(--gold); }
+.account-btn[data-status="error"]::before { background: var(--ng); }
+.login-error { margin: 0; color: var(--ng); font-size: 13px; }
+input[type="email"], input[type="password"] {
+  width: 100%; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--surface);
+}
 h1 { margin: 0; font-family: var(--serif); font-size: 20px; letter-spacing: .04em; }
 .sub { margin: 0; color: var(--muted); font-size: 12px; }
 
