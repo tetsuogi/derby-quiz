@@ -328,3 +328,10 @@ dialog::backdrop { background: rgb(0 0 0 / .35); }
 .dlg-top .kicker { color: var(--muted); font-size: 13px; margin: 0; }
 .dlg-top h2 { font-size: 28px; margin: 0; }
 .close { border: 0; background: transparent; font-size: 22px; line-height: 1; cursor: pointer; color: var(--muted); padding: 4px; }
+
+/* ---------- ログイン前 ---------- */
+body.locked .tabs, body.locked main, body.locked .site-footer { display: none; }
+body.locked .sub { visibility: hidden; }
+#gate { max-width: 960px; margin: 0 auto; padding: 0 16px; }
+#gate:empty { display: none; }
+.gate-panel { max-width: 400px; margin: 48px auto; }

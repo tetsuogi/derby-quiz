@@ -69,7 +69,7 @@ const readLocal = key => { try { return JSON.parse(localStorage.getItem(key)); }
 const writeLocal = (key, v) => { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* 保存できない環境では何もしない */ } };
 
 let storeKey = GUEST_KEY;
-const state = Object.assign(emptyState(), readLocal(GUEST_KEY));
+const state = emptyState();
 
 function replaceState(next) {
   for (const k of Object.keys(state)) delete state[k];
@@ -750,7 +750,7 @@ function renderReview() {
 // キーボード操作・画面切り替え
 // ============================================================
 document.addEventListener('keydown', e => {
-  if (dlg.open || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (dlg.open || accountDlg.open || document.body.classList.contains('locked') || e.metaKey || e.ctrlKey || e.altKey) return;
   const view = currentView();
   const typing = e.target.matches('input, textarea, select');
   if (view === 'cards' && !typing) {
@@ -793,10 +793,10 @@ const displayName = u => (u.user_metadata && u.user_metadata.name) || u.email.sp
 const hasProgress = s => s && (s.total > 0 || Object.keys(s.miss || {}).length > 0);
 
 function updateAccountBtn() {
-  if (!sb) { accountBtn.hidden = true; return; }
-  accountBtn.hidden = false;
-  accountBtn.textContent = account.user ? displayName(account.user) : 'ログイン';
-  accountBtn.dataset.status = account.user ? account.status : '';
+  accountBtn.hidden = !account.user;
+  if (!account.user) return;
+  accountBtn.textContent = displayName(account.user);
+  accountBtn.dataset.status = account.status;
 }
 
 function scheduleSync() {
@@ -832,30 +832,14 @@ async function pullRemote() {
   account.status = 'saved';
 }
 
-// ゲストで解いた記録は、ログインしたアカウントに引き継ぐ
-function mergeInto(base, extra) {
-  const miss = { ...base.miss };
-  for (const [k, v] of Object.entries(extra.miss || {})) {
-    const m = miss[k];
-    miss[k] = m ? { n: Math.max(m.n, v.n), at: Math.max(m.at || 0, v.at || 0) } : v;
-  }
-  return { ...base, miss, total: (base.total || 0) + (extra.total || 0), correct: (base.correct || 0) + (extra.correct || 0) };
-}
-
-async function switchToUser(user, { takeGuest = false } = {}) {
+async function switchToUser(user) {
   account.user = user;
   storeKey = `${GUEST_KEY}:${user.id}`;
   replaceState(readLocal(storeKey) || {});
   await pullRemote();
-  const guest = readLocal(GUEST_KEY);
-  if (takeGuest && hasProgress(guest)) {
-    replaceState(mergeInto(state, guest));
-    try { localStorage.removeItem(GUEST_KEY); } catch { /* 無視 */ }
-    save();
-  }
   Object.assign(settings, defaultSettings, state.settings || {});
   updateAccountBtn();
-  route();
+  unlock();
 }
 
 async function logout() {
@@ -864,61 +848,79 @@ async function logout() {
   account.user = null;
   account.status = '';
   storeKey = GUEST_KEY;
-  replaceState(readLocal(GUEST_KEY) || {});
-  Object.assign(settings, defaultSettings, state.settings || {});
+  replaceState({});
   session = null;
+  cardUI.order = null;
   updateAccountBtn();
+  lock();
+}
+
+// ============================================================
+// ログイン画面（未ログインのときはコンテンツを表示しない）
+// ============================================================
+const gate = document.getElementById('gate');
+
+function lock(message) {
+  document.body.classList.add('locked');
+  app.innerHTML = '';
+  if (dlg.open) dlg.close();
+  if (message) {
+    gate.innerHTML = `<div class="panel gate-panel"><p class="lead" style="margin:0">${esc(message)}</p></div>`;
+    return;
+  }
+  gate.innerHTML = `<div class="panel gate-panel">
+    <h2>ログイン</h2>
+    <p class="lead">このアプリは登録したメンバー専用です。</p>
+    <form id="login-form" class="settings" style="gap:10px">
+      <input type="email" name="email" placeholder="メールアドレス" autocomplete="username" required>
+      <input type="password" name="password" placeholder="パスワード" autocomplete="current-password" required>
+      <p class="login-error" id="login-error" hidden></p>
+      <button class="btn primary" type="submit">ログイン</button>
+    </form>
+  </div>`;
+  const form = gate.querySelector('#login-form');
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = form.querySelector('button[type=submit]');
+    const err = gate.querySelector('#login-error');
+    btn.disabled = true;
+    err.hidden = true;
+    const { data, error } = await sb.auth.signInWithPassword({ email: form.email.value.trim(), password: form.password.value });
+    if (error) {
+      btn.disabled = false;
+      err.textContent = /invalid login credentials/i.test(error.message) ? 'メールアドレスかパスワードが違います' : `ログインできませんでした（${error.message}）`;
+      err.hidden = false;
+      return;
+    }
+    await switchToUser(data.user);
+  });
+  form.email.focus();
+}
+
+function unlock() {
+  gate.innerHTML = '';
+  document.body.classList.remove('locked');
   route();
 }
 
 const STATUS_TEXT = { saving: '保存中…', saved: 'クラウドに保存済み', error: '保存に失敗しました（通信を確認してください）' };
 
 function openAccount() {
-  if (account.user) {
-    accountDlg.innerHTML = `<div class="dlg-body">
-      <div class="dlg-top"><h2>${esc(displayName(account.user))}</h2><button class="close" aria-label="閉じる" data-close>×</button></div>
-      <p class="meta">${esc(account.user.email)}</p>
-      <p>${esc(STATUS_TEXT[account.status] || '')}</p>
-      <p class="note">成績と復習リストはこのアカウントに保存され、ログインしたどの端末でも同じ内容になります。</p>
-      <div class="row" style="margin-top:16px; justify-content:flex-end"><button class="btn" id="logout">ログアウト</button></div>
-    </div>`;
-    accountDlg.querySelector('#logout').addEventListener('click', async () => { accountDlg.close(); await logout(); });
-  } else {
-    accountDlg.innerHTML = `<div class="dlg-body">
-      <div class="dlg-top"><h2>ログイン</h2><button class="close" aria-label="閉じる" data-close>×</button></div>
-      <p class="lead" style="margin-top:8px">ログインすると、成績と復習リストを端末間で同期できます。</p>
-      <form id="login-form" class="settings" style="gap:10px">
-        <input type="email" name="email" placeholder="メールアドレス" autocomplete="username" required>
-        <input type="password" name="password" placeholder="パスワード" autocomplete="current-password" required>
-        <p class="login-error" id="login-error" hidden></p>
-        <button class="btn primary" type="submit">ログイン</button>
-      </form>
-      ${hasProgress(readLocal(GUEST_KEY)) ? '<p class="note">このブラウザでログインせずに解いた記録は、ログインしたアカウントに引き継がれます。</p>' : ''}
-    </div>`;
-    const form = accountDlg.querySelector('#login-form');
-    form.addEventListener('submit', async e => {
-      e.preventDefault();
-      const btn = form.querySelector('button[type=submit]');
-      const err = accountDlg.querySelector('#login-error');
-      btn.disabled = true;
-      err.hidden = true;
-      const { data, error } = await sb.auth.signInWithPassword({ email: form.email.value.trim(), password: form.password.value });
-      btn.disabled = false;
-      if (error) {
-        err.textContent = /invalid login credentials/i.test(error.message) ? 'メールアドレスかパスワードが違います' : `ログインできませんでした（${error.message}）`;
-        err.hidden = false;
-        return;
-      }
-      accountDlg.close();
-      await switchToUser(data.user, { takeGuest: true });
-    });
-  }
+  if (!account.user) return;
+  accountDlg.innerHTML = `<div class="dlg-body">
+    <div class="dlg-top"><h2>${esc(displayName(account.user))}</h2><button class="close" aria-label="閉じる" data-close>×</button></div>
+    <p class="meta">${esc(account.user.email)}</p>
+    <p>${esc(STATUS_TEXT[account.status] || '')}</p>
+    <p class="note">成績と復習リストはこのアカウントに保存され、ログインしたどの端末でも同じ内容になります。</p>
+    <div class="row" style="margin-top:16px; justify-content:flex-end"><button class="btn" id="logout">ログアウト</button></div>
+  </div>`;
+  accountDlg.querySelector('#logout').addEventListener('click', async () => { accountDlg.close(); await logout(); });
   accountDlg.showModal();
 }
 accountDlg.addEventListener('click', e => {
   if (e.target === accountDlg || e.target.closest('[data-close]')) accountDlg.close();
 });
-accountBtn.addEventListener('click', () => { if (sb) openAccount(); });
+accountBtn.addEventListener('click', openAccount);
 
 // 画面を閉じる・アプリを切り替える前に、未送信の変更を送る
 document.addEventListener('visibilitychange', () => {
@@ -927,12 +929,16 @@ document.addEventListener('visibilitychange', () => {
 
 async function initAccount() {
   updateAccountBtn();
-  if (!sb) return;
+  if (!sb) return lock('ログインサービスに接続できませんでした。通信状況を確認して、ページを再読み込みしてください。');
   const { data } = await sb.auth.getSession();
   if (data.session) await switchToUser(data.session.user);
+  else lock();
 }
 
 document.getElementById('count').textContent = D.length;
-window.addEventListener('hashchange', () => { route(); window.scrollTo({ top: 0 }); });
-route();
+window.addEventListener('hashchange', () => {
+  if (document.body.classList.contains('locked')) return;
+  route();
+  window.scrollTo({ top: 0 });
+});
 initAccount();
