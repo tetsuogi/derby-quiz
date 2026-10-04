@@ -128,7 +128,7 @@ function openDetail(no) {
         <p class="kicker">第${h.no}回 東京優駿・${esc(h.date)}・${esc(h.course)}</p>
         <h2>${esc(h.horse)}${h.sex === '牝' ? '<span class="tag">牝馬</span>' : ''}</h2>
       </div>
-      <button class="close" aria-label="閉じる" data-close>×</button>
+      <button class="close" aria-label="閉じる" data-close><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     ${factsHtml(h)}
     ${relatedHtml(h)}
@@ -966,7 +966,7 @@ const STATUS_TEXT = { saving: '保存中…', saved: 'クラウドに保存済�
 function openAccount() {
   if (!account.user) return;
   accountDlg.innerHTML = `<div class="dlg-body">
-    <div class="dlg-top"><h2>${esc(displayName(account.user))}</h2><button class="close" aria-label="閉じる" data-close>×</button></div>
+    <div class="dlg-top"><h2>${esc(displayName(account.user))}</h2><button class="close" aria-label="閉じる" data-close><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <p class="meta">${esc(account.user.email)}</p>
     <p>${esc(STATUS_TEXT[account.status] || '')}</p>
     <p class="note">成績と復習リストはこのアカウントに保存され、ログインしたどの端末でも同じ内容になります。</p>

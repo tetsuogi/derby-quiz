@@ -405,9 +405,10 @@ dialog::backdrop { background: rgb(74 54 64 / .35); }
 .close {
   display: grid; place-items: center; flex: none;
   width: 40px; height: 40px; border-radius: 50%;
-  border: 0; background: var(--accent-soft); color: var(--accent);
-  font-size: 22px; line-height: 1; cursor: pointer;
+  padding: 0; border: 0; background: var(--accent-soft); color: var(--accent);
+  cursor: pointer; -webkit-appearance: none; appearance: none;
 }
+.close svg { display: block; }
 
 /* ---------- ログイン前 ---------- */
 body.locked .tabs, body.locked main, body.locked .site-footer { display: none; }
