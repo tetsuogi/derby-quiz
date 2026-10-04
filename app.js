@@ -64,7 +64,7 @@ function nameMatches(correct, input) {
 // 未ログイン時はこのブラウザだけに保存。ログイン中はアカウントごとに保存し Supabase に同期する
 // ============================================================
 const GUEST_KEY = 'derby-quiz:v1';
-const emptyState = () => ({ miss: {}, total: 0, correct: 0, settings: null, updatedAt: 0 });
+const emptyState = () => ({ miss: {}, known: {}, total: 0, correct: 0, settings: null, updatedAt: 0 });
 const readLocal = key => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } };
 const writeLocal = (key, v) => { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* 保存できない環境では何もしない */ } };
 
@@ -279,7 +279,7 @@ function renderGroup() {
   document.getElementById('g-quiz')?.addEventListener('click', () => {
     // 2勝以上のグループに属する馬から、その切り口の問題を出す
     const pool = D.filter(d => d[axis] && COUNTS[axis].get(d[axis]) >= 2);
-    const keys = shuffle(pool).slice(0, 10).map(d => `${d.no}:${pick([`pick-${axis}`, `horse-${axis}`])}`);
+    const keys = shuffle(pool).map(d => `${d.no}:${pick([`pick-${axis}`, `horse-${axis}`])}`).filter(keepByKnown).slice(0, 10);
     startSession(keys, { mode: 'choice', title: `${AXES[axis]}別クイズ` });
     location.hash = '#quiz';
   });
@@ -479,10 +479,14 @@ function startSession(keys, { mode = settings.mode, title = 'クイズ', review 
   session = { qs, i: 0, mode, title, review, hint: settings.hint, results: [], answered: null };
 }
 
+// 「もう覚えた」にした問題は出題確率を 1/5 に下げる（まったく出さないと忘れるので、たまに出す）
+const KNOWN_RATE = 0.2;
+const keepByKnown = key => !state.known[key] || Math.random() < KNOWN_RATE;
+
 function buildKeysFromSettings() {
   const pool = shuffle(D.filter(d => inEra(d, settings.era)));
   const keys = [];
-  for (let i = 0; keys.length < settings.n && i < settings.n * 4; i++) {
+  for (let i = 0; keys.length < settings.n && i < settings.n * 20; i++) {
     const h = pool[i % pool.length];
     let t = pick(settings.types);
     if (t === 'pick') {
@@ -492,7 +496,9 @@ function buildKeysFromSettings() {
       t = `pick-${pick(good.length ? good : fs)}`;
     }
     if (t === 'horse-damsire' && !h.damsire) continue;
-    keys.push(`${h.no}:${t}`);
+    const key = `${h.no}:${t}`;
+    if (!keepByKnown(key)) continue;
+    keys.push(key);
   }
   return keys;
 }
@@ -530,7 +536,7 @@ function renderQuizSettings() {
           <div class="chips" data-group="n">${[10, 20, 30, 50].map(n => `<button type="button" class="chip" data-v="${n}" aria-pressed="${settings.n === n}">${n}問</button>`).join('')}</div>
         </fieldset>
         <div class="row" style="justify-content:space-between">
-          <div class="stats"><span><b>${state.total}</b>問 解答</span><span>正答率 <b>${rate}</b>%</span><span>復習リスト <b>${Object.keys(state.miss).length}</b>件</span></div>
+          <div class="stats"><span><b>${state.total}</b>問 解答</span><span>正答率 <b>${rate}</b>%</span><span>復習リスト <b>${Object.keys(state.miss).length}</b>件</span><span>覚えた <b>${Object.keys(state.known).length}</b>問</span></div>
           <button class="btn primary" type="submit" id="qs-start">スタート</button>
         </div>
       </form>
@@ -597,7 +603,10 @@ function renderQuestion() {
     const your = `${ans.ok && s.mode === 'choice' ? '' : esc(correctText)}${!ans.ok && ans.input ? `（あなたの答え：${esc(ans.input)}）` : ''}`;
     fb = `<div class="verdict-bar ${ans.ok ? 'ok' : 'ng'}">
         <div><p class="verdict">${ans.ok ? 'せいかい！' : 'おしい…！'}</p>${your ? `<p class="your">${your}</p>` : ''}</div>
-        ${s.mode === 'choice' ? `<button class="btn primary" id="next">${nextLabel}</button>` : ''}
+        <div class="verdict-actions">
+          ${ans.ok ? `<button class="known-btn" id="known" aria-pressed="${!!state.known[q.key]}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>もう覚えた</button>` : ''}
+          ${s.mode === 'choice' ? `<button class="btn primary" id="next">${nextLabel}</button>` : ''}
+        </div>
       </div>
       <div class="feedback">
         <h3>${esc(q.h.horse)}</h3>
@@ -633,6 +642,13 @@ function renderQuestion() {
   }
   document.getElementById('giveup')?.addEventListener('click', () => answer(''));
   document.getElementById('next')?.addEventListener('click', nextQuestion);
+  document.getElementById('known')?.addEventListener('click', e => {
+    const on = !state.known[q.key];
+    if (on) state.known[q.key] = Date.now();
+    else delete state.known[q.key];
+    e.currentTarget.setAttribute('aria-pressed', on);
+    save();
+  });
   document.getElementById('quit').addEventListener('click', () => { session = null; renderQuiz(); });
   if (ans) document.getElementById('next').focus({ preventScroll: true });
 }
@@ -651,6 +667,7 @@ function answer(input) {
   } else {
     const m = state.miss[q.key] || { n: 0 };
     state.miss[q.key] = { n: m.n + 1, at: Date.now() };
+    delete state.known[q.key]; // 覚えたつもりで間違えたら、通常の出題に戻す
   }
   save();
   updateBadge();
@@ -703,17 +720,12 @@ function renderReview() {
     .map(([key, v]) => ({ key, q: makeQuestion(key), n: v.n, at: v.at }))
     .filter(e => e.q)
     .sort((a, b) => b.n - a.n || b.at - a.at);
+  const known = Object.entries(state.known)
+    .map(([key, at]) => ({ key, q: makeQuestion(key), at }))
+    .filter(e => e.q)
+    .sort((a, b) => b.at - a.at);
 
-  if (!entries.length) {
-    app.innerHTML = `<div class="panel empty">
-      <p>復習リストは空です。</p>
-      <p style="font-size:13px">クイズで間違えた問題がここにたまります。正解するとリストから外れます。</p>
-      <a class="btn primary" href="#quiz">クイズをする</a>
-    </div>`;
-    return;
-  }
-
-  app.innerHTML = `
+  const missPanel = entries.length ? `
     <div class="panel">
       <h2>復習リスト（${entries.length}件）</h2>
       <p class="lead">間違えた問題だけを出題します。正解するとリストから外れます。</p>
@@ -735,9 +747,28 @@ function renderReview() {
       <div class="row" style="margin-top:16px; justify-content:flex-end">
         <button class="btn ghost small" id="rv-clear">リストを全部消す</button>
       </div>
+    </div>` : `
+    <div class="panel empty">
+      <p>復習リストは空です。</p>
+      <p style="font-size:13px">クイズで間違えた問題がここにたまります。正解するとリストから外れます。</p>
+      <a class="btn primary" href="#quiz">クイズをする</a>
     </div>`;
 
-  document.getElementById('rv-mode').addEventListener('click', e => {
+  const knownPanel = known.length ? `
+    <div class="panel" style="margin-top:16px">
+      <h2>覚えた問題（${known.length}問）</h2>
+      <p class="lead">「もう覚えた」にした問題は、出題される確率が1/5になります。間違えると自動で外れます。</p>
+      <ul class="miss-list">${known.map(e => `
+        <li>
+          <div><div class="m-q">${esc(e.q.label)}｜${esc(e.q.prompt)}</div><div class="m-a">${esc(e.q.answer)}</div></div>
+          <button class="btn ghost small" data-unknown="${esc(e.key)}" aria-label="覚えた問題から外す">外す</button>
+        </li>`).join('')}
+      </ul>
+    </div>` : '';
+
+  app.innerHTML = missPanel + knownPanel;
+
+  document.getElementById('rv-mode')?.addEventListener('click', e => {
     const b = e.target.closest('[data-v]');
     if (!b) return;
     reviewUI.mode = b.dataset.v;
@@ -748,7 +779,7 @@ function renderReview() {
     state.settings = settings;
     save();
   });
-  document.getElementById('rv-start').addEventListener('click', () => {
+  document.getElementById('rv-start')?.addEventListener('click', () => {
     // 間違いの多いものを優先しつつ、順番はシャッフル
     startSession(shuffle(entries.slice(0, 20).map(e => e.key)), { mode: reviewUI.mode, title: '復習', review: true });
     location.hash = '#quiz';
@@ -759,7 +790,12 @@ function renderReview() {
     updateBadge();
     renderReview();
   }));
-  document.getElementById('rv-clear').addEventListener('click', () => {
+  app.querySelectorAll('[data-unknown]').forEach(b => b.addEventListener('click', () => {
+    delete state.known[b.dataset.unknown];
+    save();
+    renderReview();
+  }));
+  document.getElementById('rv-clear')?.addEventListener('click', () => {
     if (!confirm('復習リストを全部消しますか？')) return;
     state.miss = {};
     save();
